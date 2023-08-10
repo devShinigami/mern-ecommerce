@@ -76,11 +76,6 @@ export const createProducts = asyncHandler(async (req, res, next) => {
 //         ],
 //       });
 //     }
-//     if (category) {
-//       searchQuery.push({
-//         category,
-//       });
-//     }
 //     const pageNumber = parseInt(page || 1);
 //     const resultPerPage = parseInt(limit || 10);
 //     const skip = (pageNumber - 1) * resultPerPage;
@@ -102,28 +97,76 @@ export const createProducts = asyncHandler(async (req, res, next) => {
 //   }
 // };
 
+// export const getAllProducts = async (req, res, next) => {
+//   try {
+//     const resultPerPage = 8;
+//     const productCount = await ProductModel.countDocuments();
+//     const apiFeature = new ApiFeatures(ProductModel.find(), req.query)
+//       .search()
+//       .filter();
+
+//     let products = await apiFeature.query;
+//     let filteredProductsCount = products.length;
+//     apiFeature.pagination(resultPerPage);
+//     products = await apiFeature.query.clone();
+//     res.status(200).json({
+//       success: true,
+//       products,
+//       resultPerPage,
+//       filteredProductsCount,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const getAllProducts = async (req, res, next) => {
   try {
-    const resultPerPage = 8;
-    const productCount = await ProductModel.countDocuments();
-    const apiFeature = new ApiFeatures(ProductModel.find(), req.query)
-      .search()
-      .filter();
+    const page = parseInt(req.query.page) - 1 || 0;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+    let sort = req.query.rating || "rating";
+    let filteredCategory = req.query.category || "All";
+    const categories = await ProductModel.distinct("category");
+    console.log(categories);
+    filteredCategory === "All"
+      ? (filteredCategory = [...categories])
+      : (filteredCategory = req.query.category.split(","));
+    req.query.sort ? (sort = req.query.sort.split(",")) : (sort = [sort]);
 
-    let products = await apiFeature.query;
-    let filteredProductsCount = products.length;
-    apiFeature.pagination(resultPerPage);
-    products = await apiFeature.query.clone();
-    res.status(200).json({
+    let sortBy = {};
+    if (sort[1]) {
+      sortBy[sort[0]] = sort[1];
+    } else {
+      sortBy[sort[0]] = "asc";
+    }
+
+    const products = await ProductModel.find({
+      name: { $regex: search, $options: "i" },
+    })
+      .where("category")
+      .in([...filteredCategory])
+      .sort(sortBy)
+      .skip(page * limit)
+      .limit(limit);
+
+    const productCount = await ProductModel.countDocuments({
+      category: { $in: [...filteredCategory] },
+      name: { $regex: search, $options: "i" },
+    });
+    return res.status(200).json({
       success: true,
+      limit,
+      page: page + 1,
+      categories,
       products,
-      resultPerPage,
-      filteredProductsCount,
+      productCount,
     });
   } catch (error) {
     next(error);
   }
 };
+
 // !!  adminRoute
 
 // ?? updateProduct
@@ -389,6 +432,12 @@ export const getBrandsAllProducts = asyncHandler(async (req, res, next) => {
     const products = await ProductModel.find({ brand: req.params.id })
       .limit(resultPerPage)
       .skip(resultPerPage * (currentPage - 1));
+    if (req.query.category) {
+      const filters = products.filter(
+        (product) => product.category === req.query.category
+      );
+      return res.status(200).json({ filteredProducts: filters, success: true });
+    }
     return res.json({ success: true, products });
   } else {
     res.json({ success: false, message: "Brand not found" });
