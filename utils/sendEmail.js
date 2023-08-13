@@ -6,8 +6,8 @@ export const sendEmail = async (options) => {
     port: 465,
     secure: true,
     auth: {
-      user: "hashir.gr8.4u@gmail.com",
-      pass: "esxatapchkxprfli",
+      user: "YourEmail@gmail.com",
+      pass: "YourPASSWORD",
     },
   });
   const mailOptions = {
